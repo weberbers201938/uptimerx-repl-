@@ -1,14 +1,14 @@
-const currentUrls = ["https://replit.com/@aoisaito505/PUPPETEER-UPTIME-OPEN-SOURCE-INDEXJS-ONLY", "https://replit.com/@aoisaito505/apis-ber"];  // Add more current URLs as needed
-const uptimeUrls = ["https://db13501b-b6b5-4e32-8de6-3fb7add35d3c-00-3sovxdzzjrt0t.pike.replit.dev/", "https://0f7723e0-abf0-46c4-9c17-a40a166dc99c-00-20552yypoemja.sisko.replit.dev/"];  // Add more uptime URLs as needed
+const currentUrls = [`https://replit.com/@${process.env.REPL_OWNER}/${process.env.REPL_SLUG}`]; // Add more current URLs as needed
+const uptimeUrls = ["https://example.com"]; // Add more uptime URLs as needed
 
 const fs = require('fs');
 const path = require('path');
 const freeport = require('freeport');
 const ProxyChain = require('proxy-chain');
-const puppeteer = require('puppeteer-core');
-const { exec } = require('node:child_process');
-const { promisify } = require('node:util');
+const puppeteer = require('puppeteer');
 const express = require('express');
+const { exec } = require('child_process');
+const { promisify } = require('util');
 
 const app = express();
 const port = 3000;
@@ -31,32 +31,38 @@ async function run() {
     const proxyServer = new ProxyChain.Server({ port: proxyPort });
 
     proxyServer.listen(async () => {
-      const { stdout: chromiumPath } = await promisify(exec)("which chromium");
+      const { stdout: chromePath } = await promisify(exec)("which chromium");
 
       browser = await puppeteer.launch({
         headless: false,
-        executablePath: chromiumPath.trim(),
+        executablePath: chromePath.trim(),
         ignoreHTTPSErrors: true,
         args: [
+          '--window-size=375,812',
           '--ignore-certificate-errors',
           '--disable-gpu',
-          '--disable-software-rasterizer',
-          '--disable-dev-shm-usage',
           '--no-sandbox',
-          `--proxy-server=127.0.0.1:${proxyPort}`
+          `--proxy-server=127.0.0.1:${proxyPort}`,
         ]
       });
 
-      const cookies = JSON.parse(fs.readFileSync('cookies.json', 'utf8'));
+      const cookiesPath = path.join(__dirname, 'cookies.json');
+      let cookies = [];
+      if (fs.existsSync(cookiesPath)) {
+        cookies = JSON.parse(fs.readFileSync(cookiesPath, 'utf8'));
+      }
 
       // Loop through all uptimeUrls
       for (let i = 0; i < uptimeUrls.length; i++) {
         page = await browser.newPage();
-        await page.setUserAgent("Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_5_7;en-us) AppleWebKit/530.17 (KHTML, like Gecko) Version/4.0 Safari/530.17");
-        await page.setCookie(...cookies);
+        await page.setUserAgent(
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
+        );
+        if (cookies.length > 0) {
+          await page.setCookie(...cookies);
+        }
         await page.goto(uptimeUrls[i], { waitUntil: 'networkidle2' });
 
-        // Take a screenshot of the uptime page
         const uptimeScreenshotPath = path.join(screenshotDir, `uptime_${i + 1}.jpg`);
         await page.screenshot({ path: uptimeScreenshotPath, type: 'jpeg' });
 
@@ -66,11 +72,14 @@ async function run() {
       // Loop through all currentUrls
       for (let j = 0; j < currentUrls.length; j++) {
         const newTab = await browser.newPage();
-        await newTab.setUserAgent("Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_5_7;en-us) AppleWebKit/530.17 (KHTML, like Gecko) Version/4.0 Safari/530.17");
-        await newTab.setCookie(...cookies);
+        await newTab.setUserAgent(
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
+        );
+        if (cookies.length > 0) {
+          await newTab.setCookie(...cookies);
+        }
         await newTab.goto(currentUrls[j], { waitUntil: 'networkidle2' });
 
-        // Take a screenshot of the currentUrl page
         const currentScreenshotPath = path.join(screenshotDir, `current_${j + 1}.jpg`);
         await newTab.screenshot({ path: currentScreenshotPath, type: 'jpeg' });
 
@@ -104,4 +113,6 @@ async function run() {
   });
 }
 
-run();
+run().catch((error) => {
+  console.error('Error during execution:', error);
+});
